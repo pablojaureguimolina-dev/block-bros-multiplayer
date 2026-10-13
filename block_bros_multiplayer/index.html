@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Block Bros — Supervivencia</title>
+<style>
+  :root { --panel: rgba(12,16,28,.88); --line: rgba(255,255,255,.18); --accent:#8b5cf6; }
+  * { box-sizing:border-box }
+  html,body { margin:0; width:100%; height:100%; overflow:hidden; background:#87ceeb; font-family:system-ui,-apple-system,Segoe UI,sans-serif; color:white }
+  canvas { display:block }
+  #hud { position:fixed; inset:0; pointer-events:none; user-select:none }
+  .top { position:absolute; top:14px; left:14px; padding:10px 14px; background:var(--panel); border:1px solid var(--line); border-radius:12px; box-shadow:0 8px 30px #0003 }
+  .top strong { color:#c4b5fd; letter-spacing:.08em }
+  .top small { display:block; opacity:.8; margin-top:3px }
+  #stats { position:absolute; right:14px; top:14px; padding:10px 12px; background:var(--panel); border:1px solid var(--line); border-radius:12px; font-size:12px; text-align:right }
+  #crosshair { position:absolute; left:50%; top:50%; width:18px; height:18px; transform:translate(-50%,-50%); filter:drop-shadow(0 1px 2px #000); }
+  #crosshair:before,#crosshair:after { content:""; position:absolute; background:#fff; border:1px solid #222; border-radius:2px }
+  #crosshair:before { width:2px; height:18px; left:8px; top:0 }
+  #crosshair:after { width:18px; height:2px; left:0; top:8px }
+  #hotbar { position:absolute; bottom:18px; left:50%; transform:translateX(-50%); display:flex; gap:5px; padding:7px; background:var(--panel); border:1px solid var(--line); border-radius:12px }
+  .slot { width:48px; height:48px; border:2px solid #ffffff50; border-radius:7px; display:grid; place-items:center; position:relative; background:#ffffff12; font-size:25px; transition:.12s }
+  .slot span { position:absolute; bottom:1px; right:4px; font-size:10px; text-shadow:0 1px 2px #000 }
+  .slot.active { border-color:#c4b5fd; box-shadow:0 0 0 2px #8b5cf6,0 0 18px #8b5cf688; transform:translateY(-4px) }
+  #overlay { pointer-events:auto; position:absolute; inset:0; display:grid; place-items:center; background:linear-gradient(#10182a77,#080b16bb); backdrop-filter:blur(5px) }
+  .card { width:min(520px,calc(100% - 30px)); padding:28px; border:1px solid #ffffff35; border-radius:22px; background:rgba(10,14,28,.94); box-shadow:0 25px 90px #0007; text-align:center }
+  h1 { margin:0 0 8px; font-size:clamp(30px,6vw,48px); letter-spacing:-.04em }
+  h1 em { color:#a78bfa; font-style:normal }
+  .sub { color:#cbd5e1; line-height:1.5; margin:0 auto 20px; max-width:410px }
+  .play { cursor:pointer; border:0; border-radius:12px; padding:13px 25px; color:white; font-weight:800; font-size:16px; background:linear-gradient(110deg,#7c3aed,#2563eb); box-shadow:0 8px 25px #6d28d955 }
+  .play:hover { filter:brightness(1.15); transform:translateY(-1px) }
+  .keys { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:20px; text-align:left; font-size:13px; color:#dbeafe }
+  .keys div { padding:9px 10px; border:1px solid #ffffff17; background:#ffffff08; border-radius:9px }
+  kbd { background:#ffffff18; border:1px solid #ffffff30; padding:2px 5px; border-radius:4px; color:white }
+  #toast { position:absolute; top:82px; left:50%; transform:translateX(-50%); background:#111827e8; padding:9px 13px; border-radius:9px; opacity:0; transition:opacity .2s; font-size:13px }
+  #toast.show { opacity:1 }
+  @media(max-width:540px) { .slot{width:37px;height:40px;font-size:21px}.keys{grid-template-columns:1fr}.top small{max-width:190px} }
+</style>
+</head>
+<body>
+<div id="hud">
+  <div class="top"><strong>▦ BLOCK BROS · SUPERVIVENCIA</strong><small>Recoge recursos, fabrica y sobrevive</small><small id="netStatus">Multijugador: desconectado</small><small id="playerCount">Jugadores: 1</small></div>
+  <div id="stats">❤️ Vida: <b id="health">100</b>% &nbsp; 🍗 Hambre: <b id="hunger">100</b>%<br>🪵 Madera: <b id="woodCount">0</b> &nbsp; 🪵 Tablones: <b id="plankCount">0</b><br>🪨 Piedra: <b id="stoneCount">0</b><br>Bloques en mundo: <b id="count">0</b></div>
+  <div id="crosshair"></div>
+  <div id="toast"></div>
+  <div id="hotbar"></div>
+  <div id="overlay">
+    <div class="card">
+      <h1>BLOCK <em>BROS</em></h1>
+      <p class="sub">Sobrevive en un mundo 3D: recoge madera y piedra, cuida tu vida y tu hambre, y construye para mantenerte a salvo.</p>
+      <input id="playerName" maxlength="16" placeholder="Tu nombre" value="Jugador" style="display:block;width:100%;max-width:260px;margin:0 auto 12px;padding:11px;border-radius:9px;border:1px solid #ffffff35;background:#111827;color:white;text-align:center;font:inherit"><button class="play" id="start">JUGAR AHORA</button>
+      <div class="keys">
+        <div>🚶 Moverse: <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></div>
+        <div>🖱️ Mirar: mover el ratón</div>
+        <div>⛏️ Romper: clic izquierdo para recoger recursos</div>
+        <div>🧱 Colocar: clic derecho (consume recursos)</div>
+        <div>⬆️ Saltar: <kbd>Espacio</kbd></div>
+        <div>🎒 Seleccionar: <kbd>1</kbd>–<kbd>7</kbd></div>
+        <div>🍎 Comer: <kbd>F</kbd> (recupera hambre)</div>
+        <div>🛠️ Fabricar: <kbd>C</kbd> (con 3 maderas crea 4 bloques de madera)
+      </div>
+    </div>
+  </div>
+</div>
+<script>window.BLOCK_BROS_SERVER_URL = "wss://PEGA-AQUI-TU-SERVIDOR.onrender.com";</script>\n<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+<script>
+(() => {
+  const overlay = document.getElementById('overlay');
+  const startBtn = document.getElementById('start');
+  const toastEl = document.getElementById('toast');
+  const countEl = document.getElementById('count');
+  const hotbar = document.getElementById('hotbar');
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x87ceeb);
+  scene.fog = new THREE.Fog(0x87ceeb, 24, 62);
+  const camera = new THREE.PerspectiveCamera(75, innerWidth/innerHeight, .1, 150);
+  camera.rotation.order = 'YXZ';
+  const renderer = new THREE.WebGLRenderer({antialias:false});
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  renderer.setSize(innerWidth, innerHeight);
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  document.body.appendChild(renderer.domElement);
+
+  scene.add(new THREE.HemisphereLight(0xd9efff, 0x52613b, 2.1));
+  const sun = new THREE.DirectionalLight(0xfff0d2, 2.2);
+  sun.position.set(-18, 28, 14); sun.castShadow = true;
+  sun.shadow.mapSize.set(1024,1024);
+  sun.shadow.camera.left=-30; sun.shadow.camera.right=30; sun.shadow.camera.top=30; sun.shadow.camera.bottom=-30;
+  scene.add(sun);
+
+  const materials = {
+    grass: new THREE.MeshLambertMaterial({color:0x65a843}),
+    dirt: new THREE.MeshLambertMaterial({color:0x8b5a35}),
+    stone: new THREE.MeshLambertMaterial({color:0x858b94}),
+    wood: new THREE.MeshLambertMaterial({color:0x99602f}),
+    planks: new THREE.MeshLambertMaterial({color:0xc28a4d}),
+    leaves: new THREE.MeshLambertMaterial({color:0x347d39}),
+    sand: new THREE.MeshLambertMaterial({color:0xe2cd83}),
+    brick: new THREE.MeshLambertMaterial({color:0xb95748})
+  };
+  const blockTypes = [
+    {id:'grass',emoji:'🟩',name:'Césped'},
+    {id:'dirt',emoji:'🟫',name:'Tierra'},
+    {id:'stone',emoji:'⬜',name:'Piedra'},
+    {id:'wood',emoji:'🪵',name:'Madera'},
+    {id:'leaves',emoji:'🌿',name:'Hojas'},
+    {id:'sand',emoji:'🟨',name:'Arena'},
+    {id:'planks',emoji:'🪵',name:'Tablones'}
+  ];
+  let selected = 0;
+  const inventory = {grass:0,dirt:0,stone:0,wood:0,planks:0,leaves:0,sand:0};
+  let health = 100, hunger = 100, survivalElapsed = 0, dead = false;
+  const healthEl = document.getElementById('health');
+  const hungerEl = document.getElementById('hunger');
+  const woodEl = document.getElementById('woodCount');
+  const stoneEl = document.getElementById('stoneCount');
+  const plankEl = document.getElementById('plankCount');
+  function updateSurvivalUI(){
+    healthEl.textContent = Math.max(0,Math.round(health));
+    hungerEl.textContent = Math.max(0,Math.round(hunger));
+    woodEl.textContent = inventory.wood;
+    stoneEl.textContent = inventory.stone;
+    plankEl.textContent = inventory.planks || 0;
+    countEl.textContent = blocks.size;
+    slots.forEach((s,i)=>{const old=s.querySelector('.qty');if(old)old.remove();const q=document.createElement('small');q.className='qty';q.textContent=inventory[blockTypes[i].id]||0;q.style.cssText='position:absolute;top:1px;left:4px;font-size:10px;text-shadow:0 1px 2px #000';s.appendChild(q);});
+  }
+  const slots = [];
+  blockTypes.forEach((b,i)=>{
+    const el=document.createElement('div'); el.className='slot'+(i===0?' active':'');
+    el.innerHTML=`${b.emoji}<span>${i+1}</span>`; el.title=b.name; hotbar.appendChild(el); slots.push(el);
+  });
+  function selectSlot(i){ selected=(i+blockTypes.length)%blockTypes.length; slots.forEach((s,j)=>s.classList.toggle('active',j===selected)); showToast(blockTypes[selected].name); }
+  let toastTimer;
+  function showToast(s){ toastEl.textContent=s; toastEl.classList.add('show'); clearTimeout(toastTimer); toastTimer=setTimeout(()=>toastEl.classList.remove('show'),950); }
+
+  const cubeGeo = new THREE.BoxGeometry(1,1,1);
+  const blocks = new Map();
+  const key = (x,y,z)=>`${x},${y},${z}`;
+  function addBlock(x,y,z,type,decor=false){
+    const k=key(x,y,z); if(blocks.has(k)) return false;
+    const mesh=new THREE.Mesh(cubeGeo,materials[type]||materials.grass);
+    mesh.position.set(x,y,z); mesh.castShadow=true; mesh.receiveShadow=true;
+    mesh.userData={x,y,z,type,decor}; scene.add(mesh); blocks.set(k,mesh); countEl.textContent=blocks.size;
+    return true;
+  }
+  function removeBlock(mesh){
+    const d=mesh.userData; if(!d || d.y===0 || d.decor) return false;
+    scene.remove(mesh); blocks.delete(key(d.x,d.y,d.z)); countEl.textContent=blocks.size; return true;
+  }
+  function gatherBlock(mesh){
+    const d=mesh.userData;
+    if(!d || d.y===0) { showToast('Ese bloque no se puede recoger'); return false; }
+    if(d.type==='grass') inventory.dirt++;
+    else if(d.type==='leaves') inventory.leaves++;
+    else inventory[d.type]=(inventory[d.type]||0)+1;
+    scene.remove(mesh); blocks.delete(key(d.x,d.y,d.z)); updateSurvivalUI();
+    showToast('+'+(d.type==='grass'?'tierra':d.type)); return true;
+  }
+  function craft(){
+    if(inventory.wood>=3){inventory.wood-=3;inventory.planks=(inventory.planks||0)+4;showToast('Fabricaste 4 tablones. Selecciona el bloque 7 para usarlos');}
+    else showToast('Necesitas 3 maderas para fabricar tablones');
+    updateSurvivalUI();
+  }
+  function eat(){
+    if(inventory.leaves>0){inventory.leaves--;hunger=Math.min(100,hunger+18);showToast('Comiste bayas silvestres (+hambre)');}
+    else {hunger=Math.min(100,hunger+10);showToast('Comiste raíces (+hambre)');}
+    updateSurvivalUI();
+  }
+  // A small rolling, block-built island with a few trees and rocks.
+  for(let x=-18;x<=18;x++) for(let z=-18;z<=18;z++){
+    const dist=Math.sqrt(x*x+z*z);
+    if(dist>22) continue;
+    const h=Math.max(1, Math.floor(3.2-dist*.075 + Math.sin(x*.55)*.45 + Math.cos(z*.48)*.4));
+    for(let y=-2;y<h;y++) addBlock(x,y,z,y===h-1?'grass':(y<-0?'stone':'dirt'));
+  }
+  // Sand beach around one side.
+  for(let x=-17;x<=-10;x++) for(let z=-5;z<=7;z++){
+    const top=blocks.get(key(x,0,z));
+    if(top && Math.random()>.25){ scene.remove(top); blocks.delete(key(x,0,z)); addBlock(x,0,z,'sand'); }
+  }
+  function tree(x,z){
+    const base=blocks.get(key(x,0,z))?1:0;
+    for(let y=base;y<base+4;y++) addBlock(x,y,z,'wood',true);
+    for(let dx=-2;dx<=2;dx++) for(let dz=-2;dz<=2;dz++) for(let dy=2;dy<=4;dy++){
+      if(Math.abs(dx)+Math.abs(dz)+(dy===4?1:0)<5 && !(dx===0&&dz===0&&dy<4)) addBlock(x+dx,base+dy,z+dz,'leaves',true);
+    }
+  }
+  [[-7,-4],[6,-5],[9,5],[-8,8],[3,10],[-12,2]].forEach(p=>tree(...p));
+  // Scatter a few boulders.
+  for(let i=0;i<24;i++){
+    const x=Math.round((Math.random()-.5)*28),z=Math.round((Math.random()-.5)*28);
+    const ground=blocks.get(key(x,0,z));
+    if(ground && Math.random()>.35) addBlock(x,1,z,'stone',true);
+  }
+
+  // Recursos iniciales para que la primera construcción sea posible.
+  inventory.wood = 3; inventory.stone = 2; inventory.dirt = 8; inventory.grass = 8; inventory.leaves = 2; inventory.sand = 4;
+  updateSurvivalUI();
+  const player={pos:new THREE.Vector3(0,5,9),vel:new THREE.Vector3(),yaw:0,pitch:0,onGround:false};
+  const keys={}; let locked=false; let started=false;
+
+  // Multijugador: conexión WebSocket al servidor propio.
+  const netStatusEl=document.getElementById('netStatus');
+  const playerCountEl=document.getElementById('playerCount');
+  const nameInput=document.getElementById('playerName');
+  const remotePlayers=new Map();
+  let socket=null, myId=null, lastNetSend=0;
+  const remoteGeometry=new THREE.BoxGeometry(.7,1.7,.7);
+  const remoteMaterials=[0x8b5cf6,0x2563eb,0x22c55e,0xf97316,0xec4899].map(c=>new THREE.MeshLambertMaterial({color:c}));
+  function setNetStatus(t){if(netStatusEl)netStatusEl.textContent='Multijugador: '+t;}
+  function updatePlayerCount(){playerCountEl.textContent='Jugadores: '+(remotePlayers.size+1);}
+  function sendNet(obj){if(socket&&socket.readyState===WebSocket.OPEN)socket.send(JSON.stringify(obj));}
+  function createRemotePlayer(p){
+    if(!p||p.id===myId)return;
+    let entry=remotePlayers.get(p.id);
+    if(!entry){
+      const mesh=new THREE.Mesh(remoteGeometry,remoteMaterials[remotePlayers.size%remoteMaterials.length]);
+      mesh.castShadow=true; scene.add(mesh);
+      const labelCanvas=document.createElement('canvas');labelCanvas.width=256;labelCanvas.height=64;
+      const ctx=labelCanvas.getContext('2d');ctx.fillStyle='rgba(8,11,22,.8)';ctx.fillRect(0,0,256,64);
+      ctx.fillStyle='white';ctx.font='bold 25px sans-serif';ctx.textAlign='center';ctx.fillText(String(p.name||'Jugador').slice(0,16),128,41);
+      const tex=new THREE.CanvasTexture(labelCanvas);
+      const label=new THREE.Sprite(new THREE.SpriteMaterial({map:tex,transparent:true}));
+      label.scale.set(2.3,.58,1);label.position.y=1.35;mesh.add(label);
+      entry={mesh,name:p.name||'Jugador'};remotePlayers.set(p.id,entry);updatePlayerCount();
+    }
+    entry.mesh.position.set(Number(p.x)||0,(Number(p.y)||5)-.85,Number(p.z)||0);
+    entry.mesh.rotation.y=Number(p.yaw)||0;
+  }
+  function removeRemotePlayer(id){
+    const p=remotePlayers.get(id);if(!p)return;
+    scene.remove(p.mesh);p.mesh.traverse(o=>{if(o.material&&o.material.map)o.material.map.dispose();});
+    remotePlayers.delete(id);updatePlayerCount();
+  }
+  function connectMultiplayer(){
+    const url=window.BLOCK_BROS_SERVER_URL;
+    if(!url||url.includes('PEGA-AQUI-TU-SERVIDOR')){setNetStatus('falta configurar el servidor');showToast('Falta publicar y configurar el servidor');return;}
+    try{
+      socket=new WebSocket(url);
+      setNetStatus('conectando…');
+      socket.addEventListener('open',()=>{setNetStatus('conectado');sendNet({type:'join',name:(nameInput.value||'Jugador').trim().slice(0,16)||'Jugador',x:player.pos.x,y:player.pos.y,z:player.pos.z,yaw:player.yaw});});
+      socket.addEventListener('message',ev=>{
+        let m;try{m=JSON.parse(ev.data)}catch{return}
+        if(m.type==='welcome'){myId=m.id;(m.players||[]).forEach(createRemotePlayer);(m.blocks||[]).forEach(b=>{if(b.action==='remove'){const mesh=blocks.get(key(b.x,b.y,b.z));if(mesh){scene.remove(mesh);blocks.delete(key(b.x,b.y,b.z));}}else if(b.action==='add')addBlock(b.x,b.y,b.z,b.blockType);});updateSurvivalUI();}
+        if(m.type==='player-joined')createRemotePlayer(m.player);
+        if(m.type==='player-moved')createRemotePlayer(m.player);
+        if(m.type==='player-left')removeRemotePlayer(m.id);
+        if(m.type==='block-change'){
+          const k=key(m.x,m.y,m.z);
+          if(m.action==='remove'){const mesh=blocks.get(k);if(mesh){scene.remove(mesh);blocks.delete(k);updateSurvivalUI();}}
+          else if(m.action==='add'){addBlock(m.x,m.y,m.z,m.blockType);updateSurvivalUI();}
+        }
+      });
+      socket.addEventListener('close',()=>setNetStatus('desconectado'));
+      socket.addEventListener('error',()=>setNetStatus('error de conexión'));
+    }catch(e){setNetStatus('error');}
+  }
+  const raycaster=new THREE.Raycaster(); raycaster.far=7;
+  function collidesAt(pos){
+    const r=.29, h=1.75;
+    for(let x=Math.floor(pos.x-r);x<=Math.floor(pos.x+r);x++)
+      for(let y=Math.floor(pos.y);y<=Math.floor(pos.y+h);y++)
+        for(let z=Math.floor(pos.z-r);z<=Math.floor(pos.z+r);z++)
+          if(blocks.has(key(x,y,z))) return true;
+    return false;
+  }
+  function groundAt(pos){
+    const r=.29;
+    const y=Math.floor(pos.y-.08);
+    for(let x=Math.floor(pos.x-r);x<=Math.floor(pos.x+r);x++)
+      for(let z=Math.floor(pos.z-r);z<=Math.floor(pos.z+r);z++)
+        if(blocks.has(key(x,y,z))) return true;
+    return false;
+  }
+  function enter(){ started=true; overlay.style.display='none'; connectMultiplayer(); renderer.domElement.requestPointerLock(); }
+  startBtn.addEventListener('click',enter);
+  document.addEventListener('pointerlockchange',()=>{locked=document.pointerLockElement===renderer.domElement;if(started&&!locked) overlay.style.display='grid';});
+  document.addEventListener('mousemove',e=>{if(!locked)return;player.yaw-=e.movementX*.0022;player.pitch-=e.movementY*.0022;player.pitch=Math.max(-1.52,Math.min(1.52,player.pitch));});
+  document.addEventListener('keydown',e=>{
+    keys[e.code]=true;
+    if(/^Digit[1-7]$/.test(e.code)) selectSlot(Number(e.code.slice(-1))-1);
+    if(e.code==='Space' && player.onGround){player.vel.y=7.3;player.onGround=false;}
+    if(e.code==='KeyF' && !e.repeat) eat();
+    if(e.code==='KeyC' && !e.repeat) craft();
+    if(['Space','ArrowUp','ArrowDown'].includes(e.code)) e.preventDefault();
+  });
+  document.addEventListener('keyup',e=>keys[e.code]=false);
+  document.addEventListener('contextmenu',e=>e.preventDefault());
+  document.addEventListener('mousedown',e=>{
+    if(!locked)return;
+    camera.updateMatrixWorld();
+    raycaster.setFromCamera(new THREE.Vector2(0,0),camera);
+    const hits=raycaster.intersectObjects(Array.from(blocks.values()),false);
+    if(!hits.length)return;
+    const hit=hits[0], mesh=hit.object;
+    if(e.button===0){ gatherBlock(mesh); }
+    if(e.button===2){
+      const type=blockTypes[selected].id;
+      if((inventory[type]||0)<=0){showToast('No tienes ese bloque');return;}
+      const p=mesh.position.clone().add(hit.face.normal);
+      const x=Math.round(p.x),y=Math.round(p.y),z=Math.round(p.z);
+      const candidate=new THREE.Vector3(x,y,z);
+      if(candidate.distanceTo(player.pos)<1.25 || collidesAt(new THREE.Vector3(x,y,z))) {showToast('No cabe ahí');return;}
+      if(addBlock(x,y,z,type)){inventory[type]--;sendNet({type:'block-change',action:'add',x,y,z,blockType:type});updateSurvivalUI();showToast('Bloque colocado');}
+    }
+  });
+  window.addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);});
+  let prev=performance.now();
+  function animate(now){
+    requestAnimationFrame(animate);
+    const dt=Math.min((now-prev)/1000,.04); prev=now;
+    if(locked && !dead){
+      survivalElapsed += dt;
+      if(survivalElapsed > 7){hunger=Math.max(0,hunger-.65);survivalElapsed=0;updateSurvivalUI();}
+      if(hunger<=0){health=Math.max(0,health-.8);updateSurvivalUI();}
+      if(health<=0){
+        dead=true; document.exitPointerLock(); overlay.style.display='grid';
+        overlay.querySelector('h1').innerHTML='HAS <em>MUERTO</em>';
+        overlay.querySelector('.sub').textContent='Te quedaste sin fuerzas. Pulsa el botón para volver a intentarlo.';
+        startBtn.textContent='VOLVER A JUGAR'; startBtn.onclick=()=>location.reload();
+      }
+      const forward=new THREE.Vector3(-Math.sin(player.yaw),0,-Math.cos(player.yaw));
+      const right=new THREE.Vector3(Math.cos(player.yaw),0,-Math.sin(player.yaw));
+      const move=new THREE.Vector3();
+      if(keys.KeyW||keys.ArrowUp) move.add(forward);
+      if(keys.KeyS||keys.ArrowDown) move.sub(forward);
+      if(keys.KeyD||keys.ArrowRight) move.add(right);
+      if(keys.KeyA||keys.ArrowLeft) move.sub(right);
+      if(move.lengthSq()) move.normalize().multiplyScalar(keys.ShiftLeft?8:5.3);
+      const oldX=player.pos.x, oldZ=player.pos.z;
+      player.pos.x+=move.x*dt;
+      if(collidesAt(player.pos)) player.pos.x=oldX;
+      player.pos.z+=move.z*dt;
+      if(collidesAt(player.pos)) player.pos.z=oldZ;
+      player.vel.y-=19*dt;
+      player.pos.y+=player.vel.y*dt;
+      if(collidesAt(player.pos)){
+        if(player.vel.y<0){player.onGround=true;player.vel.y=0;}
+        else player.vel.y=0;
+        while(collidesAt(player.pos)) player.pos.y+=.04;
+      } else player.onGround=groundAt(player.pos);
+      if(player.pos.y < -10) {player.pos.set(0,7,9);player.vel.set(0,0,0);}
+      camera.position.set(player.pos.x,player.pos.y+1.55,player.pos.z);
+      camera.rotation.set(player.pitch,player.yaw,0,'YXZ');
+      if(now-lastNetSend>50){sendNet({type:'move',x:player.pos.x,y:player.pos.y,z:player.pos.z,yaw:player.yaw,pitch:player.pitch});lastNetSend=now;}
+    }
+    renderer.render(scene,camera);
+  }
+  requestAnimationFrame(animate);
+})();
+</script>
+</body>
+</html>

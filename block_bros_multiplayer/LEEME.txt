@@ -1,0 +1,33 @@
+# BLOCK BROS multijugador — guía sencilla
+
+Este paquete contiene:
+- `index.html`: el juego preparado para conectarse al servidor.
+- `server/`: servidor WebSocket que sincroniza jugadores y cambios de bloques.
+
+## Importante
+El servidor debe publicarse primero. La dirección que entrega Render se pega en `index.html` en la línea:
+`window.BLOCK_BROS_SERVER_URL = "wss://PEGA-AQUI-TU-SERVIDOR.onrender.com";`
+
+Reemplaza solo el texto `wss://PEGA-AQUI-TU-SERVIDOR.onrender.com` por la dirección segura del servicio Render, usando `wss://` en vez de `https://`.
+
+## Publicar el servidor con Render y GitHub
+1. Crea un repositorio nuevo en GitHub llamado `block-bros-multiplayer`.
+2. Sube la carpeta `server` (el `package.json` y `server.js` deben quedar dentro de esa carpeta).
+3. En Render elige **New + → Web Service** y conecta el repositorio.
+4. Si `server` está dentro de una carpeta del repositorio, escribe `server` como **Root Directory**.
+5. Build Command: `npm install`
+6. Start Command: `npm start`
+7. Crear el servicio y esperar a que termine el despliegue.
+8. Copia la dirección `https://...onrender.com` de Render. Ábrela; debe mostrar un JSON con `"status":"ok"`.
+9. En `index.html`, cambia la URL por `wss://...onrender.com` (mismo dominio, cambiando https por wss).
+10. Vuelve a subir el `index.html` actualizado a Netlify, reemplazando los archivos del sitio.
+
+## Probar
+Abre la página desde dos navegadores/dispositivos. Escribe nombres distintos y pulsa JUGAR AHORA. Arriba a la izquierda debe indicar conectado y contar los jugadores.
+
+## Limitaciones de esta primera versión
+- Sincroniza las posiciones de jugadores y bloques colocados/retirados.
+- El terreno decorativo se genera localmente y contiene elementos aleatorios, así que algunas decoraciones iniciales pueden diferir entre clientes.
+- El inventario y la vida no se comparten entre jugadores.
+- Un servidor gratuito puede tardar en despertarse después de estar inactivo.
+- Usa solo nombres de jugador, no contraseñas ni datos personales.
